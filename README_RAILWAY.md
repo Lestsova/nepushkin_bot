@@ -1,50 +1,38 @@
-Railway deployment instructions (two options: GitHub or Railway CLI)
+Render (Web Service) deployment — webhook-ready bot
 
-Files in this package:
-- bot.py                — main bot code (reads BOT_TOKEN and CHANNEL_ID from env)
-- requirements.txt      — Python deps
-- .env.example          — example environment file
+Files included:
+- bot.py            # webhook-ready aiogram v2 bot (uses aiohttp via aiogram.start_webhook)
+- requirements.txt  # python deps
+- .env.example      # example environment file
+- README_RENDER.md  # these instructions
 
-Quick local test:
+Quick local test (optional):
 1) unzip project
-2) create virtualenv and activate:
-   python3 -m venv venv
-   source venv/bin/activate   (Windows: venv\Scripts\activate)
-3) pip install -r requirements.txt
-4) copy .env.example to .env and edit, or set env vars in your shell
-5) python bot.py
+2) create virtualenv and install deps:
+   python -m venv venv
+   # Windows:
+   venv\Scripts\activate
+   # Linux/Mac:
+   source venv/bin/activate
+   pip install -r requirements.txt
 
-Deploy to Railway (recommended: use GitHub):
+3) copy .env.example to .env and edit values (for local testing you can use a tunnel like ngrok for PUBLIC_URL)
+   copy .env.example .env
+   edit .env
 
-Option A — via GitHub (recommended)
-1) Create a GitHub repo (https://github.com/new)
-2) git init
-   git add .
-   git commit -m "Initial commit"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-   git push -u origin main
-3) Go to https://railway.app, sign in with GitHub, click "New Project" -> "Deploy from GitHub repo"
-4) Find your repository and deploy
-5) In Railway project settings -> Variables, add:
-   BOT_TOKEN = your_bot_token
-   CHANNEL_ID = -1002741424126
-6) Set Start Command: python bot.py
-7) Deploy. Check logs — when you see "Start polling." bot is running.
+4) python bot.py  (requires PUBLIC_URL reachable -> use ngrok if testing locally)
 
-Option B — Deploy from local using Railway CLI (no GitHub)
-1) Install Railway CLI:
-   npm install -g railway
-2) Login: railway login
-3) In project folder run:
-   railway init
-   # follow prompts to create a project
-   railway up
-4) In Railway dashboard, under Project -> Variables, add BOT_TOKEN and CHANNEL_ID
-5) Set Start Command to: python bot.py
-
-After deployment: open logs, make sure polling started. Test the bot in Telegram by sending /start.
+Deploy to Render (Web Service, free tier with webhook):
+1) Create GitHub repo and push these files (or use existing repo).
+2) In Render: New -> Web Service -> Connect GitHub repo -> choose branch main.
+3) Environment variables (Service -> Environment):
+   BOT_TOKEN = (your bot token from @BotFather)
+   CHANNEL_ID = -1002741424126  (your channel id)
+   PUBLIC_URL = https://<your-service-name>.onrender.com  (set AFTER you create the service; then redeploy)
+4) Start Command: python bot.py
+5) Deploy. Check Logs -> when you see "Webhook set to https://..." bot is ready. Test by sending /start
 
 Notes:
-- It's recommended to set BOT_TOKEN and CHANNEL_ID as Railway environment variables (Project -> Variables).
-- If you prefer the bot to read from a .env file locally, copy .env.example to .env and edit values.
+- PUBLIC_URL must be your Render service URL (https://your-app.onrender.com). Set it in Environment variables and redeploy so the bot sets webhook correctly.
+- If you use GitHub, Render will redeploy automatically on push to main branch.
+- For webhook mode make sure the service uses HTTPS (Render provides it automatically).
