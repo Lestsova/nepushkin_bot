@@ -40,14 +40,11 @@ send_again_keyboard = InlineKeyboardMarkup().add(
 async def start(message: types.Message, state: FSMContext):
     await state.finish()
     await message.answer(
-        "👋 Добро пожаловать в бот канала *Это вам не Пушкин*!
-
-"
-        "Здесь вы можете предложить свой стих, который, возможно, будет опубликован 💫. Выбери формат стиха:",
-        parse_mode="Markdown",
-        reply_markup=format_keyboard
-    )
-
+    "👋 Добро пожаловать в бот канала *Это вам не Пушкин*!\n\n"
+    "Здесь вы можете предложить свой стих, который, возможно, будет опубликован 💫. Выбери формат стиха:",
+    parse_mode="Markdown",
+    reply_markup=format_keyboard
+)
 @dp.callback_query_handler(lambda c: c.data.startswith("format_"), state='*')
 async def process_format(callback_query: types.CallbackQuery, state: FSMContext):
     format_map = {
