@@ -1,1 +1,0 @@
-"# nepushkin_bot" 
