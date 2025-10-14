@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: nepushkin-bot
+    env: python
+    buildCommand: |
+      apt-get update
+      apt-get install -y python3.10 python3.10-venv python3.10-dev
+      ln -sf /usr/bin/python3.10 /usr/bin/python
+      python -m venv venv
+      . venv/bin/activate
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: |
+      . venv/bin/activate
+      python bot.py
