@@ -1,0 +1,10 @@
+services:
+  - type: worker
+    name: nepushkin-bot
+    env: python
+    plan: free
+    buildCommand: "bash build.sh"
+    startCommand: "python bot.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
