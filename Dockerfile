@@ -5,10 +5,11 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Копируем все файлы проекта
-COPY . /app
+COPY . .
 
-# Устанавливаем зависимости
-RUN pip install --no-cache-dir -r requirements.txt
+# Обновляем pip и ставим зависимости
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
 # Запускаем бота
 CMD ["python", "bot.py"]
