@@ -91,7 +91,7 @@ async def confirm(message: types.Message):
     text_to_send = f"{data['format']}\n\n{data['text']}\n\n👤 Автор: _{data['author']}_"
 
     await bot.send_message(CHANNEL_ID, text_to_send, parse_mode="Markdown")
-    await message.answer("✨  Спасибо 🙏 Ваш стих отправлен на рассмотрение!", reply_markup=kb)
+    await message.answer("✨ Спасибо 🙏  Ваш стих отправлен на рассмотрение! Возвращайтесь, когда будет вдохновение!✨", reply_markup=kb)
 
     del user_data[user_id]
 
