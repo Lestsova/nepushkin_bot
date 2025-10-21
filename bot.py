@@ -1,115 +1,144 @@
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher import FSMContext
-from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.utils import executor
+import logging
+import asyncio
 import os
+import aiohttp
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiohttp import web
 
-API_TOKEN = os.getenv("BOT_TOKEN")
+# Настройка логов
+logging.basicConfig(level=logging.INFO)
+
+# Загружаем переменные окружения
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot, storage=MemoryStorage())
+# Проверка токена
+if not BOT_TOKEN:
+    raise ValueError("❌ Не найден BOT_TOKEN в переменных окружения Render!")
 
-class PoemForm(StatesGroup):
-    format = State()
-    text = State()
-    author = State()
-    confirm = State()
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(bot)
 
-format_keyboard = InlineKeyboardMarkup(row_width=2)
-format_keyboard.add(
-    InlineKeyboardButton("📜 Пирожок", callback_data="format_pirozhok"),
-    InlineKeyboardButton("💊 Порошок", callback_data="format_poroshek"),
-    InlineKeyboardButton("🌧 Депрессяшок", callback_data="format_depress"),
-    InlineKeyboardButton("🎭 Экспромт", callback_data="format_exprompt"),
+# --- Хранение состояний ---
+user_data = {}
+
+# --- Кнопки выбора формата ---
+kb = ReplyKeyboardMarkup(resize_keyboard=True)
+kb.add(
+    KeyboardButton("📜 Пирожок"),
+    KeyboardButton("🧪 Порошок"),
+    KeyboardButton("🕯 Депрессяшок"),
+    KeyboardButton("✍️ Экспромт"),
 )
 
-confirm_keyboard = InlineKeyboardMarkup(row_width=2)
-confirm_keyboard.add(
-    InlineKeyboardButton("✅ Всё верно — отправить", callback_data="confirm"),
-    InlineKeyboardButton("✏️ Исправить", callback_data="edit")
-)
+# --- Команда /start ---
+@dp.message_handler(commands=["start"])
+async def start(message: types.Message):
+    text = (
+        "👋 Добро пожаловать в бот канала *«Это вам не Пушкин»*!\n\n"
+        "Выберите формат стиха, который хотите отправить:"
+    )
+    await message.answer(text, parse_mode="Markdown", reply_markup=kb)
 
-send_again_keyboard = InlineKeyboardMarkup().add(
-    InlineKeyboardButton("📝 Отправить ещё один стих", callback_data="send_again")
-)
+# --- Выбор формата ---
+@dp.message_handler(lambda msg: msg.text in ["📜 Пирожок", "🧪 Порошок", "🕯 Депрессяшок", "✍️ Экспромт"])
+async def choose_format(message: types.Message):
+    user_data[message.from_user.id] = {"format": message.text}
+    await message.answer("✍️ Введите ваш стих:")
 
-@dp.message_handler(commands='start')
-async def start(message: types.Message, state: FSMContext):
-    await state.finish()
-    await message.answer(
-    "👋 Добро пожаловать в бот канала *Это вам не Пушкин*!\n\n"
-    "Здесь вы можете предложить свой стих, который, возможно, будет опубликован 💫. Выбери формат стиха:",
-    parse_mode="Markdown",
-    reply_markup=format_keyboard
-)
-@dp.callback_query_handler(lambda c: c.data.startswith("format_"), state='*')
-async def process_format(callback_query: types.CallbackQuery, state: FSMContext):
-    format_map = {
-        "format_pirozhok": "📜 Пирожок",
-        "format_poroshek": "💊 Порошок",
-        "format_depress": "🌧 Депрессяшок",
-        "format_exprompt": "🎭 Экспромт"
-    }
-    selected = format_map.get(callback_query.data, "Неизвестно")
-    await state.update_data(format=selected)
-    await bot.send_message(callback_query.from_user.id, f"Формат выбран: {selected}\nТеперь пришли, пожалуйста, сам стих:")
-    await PoemForm.text.set()
+# --- Получение текста стиха ---
+@dp.message_handler(lambda msg: msg.from_user.id in user_data and "text" not in user_data[msg.from_user.id])
+async def get_text(message: types.Message):
+    user_data[message.from_user.id]["text"] = message.text
+    await message.answer("📛 Укажите имя автора или напишите *Анонимно*:", parse_mode="Markdown")
 
-@dp.message_handler(state=PoemForm.text)
-async def process_poem(message: types.Message, state: FSMContext):
-    await state.update_data(text=message.text)
-    await message.answer("Как подписать этот стих? Напиши имя/псевдоним автора.")
-    await PoemForm.author.set()
+# --- Получение имени ---
+@dp.message_handler(lambda msg: msg.from_user.id in user_data and "author" not in user_data[msg.from_user.id])
+async def get_author(message: types.Message):
+    user_data[message.from_user.id]["author"] = message.text
+    data = user_data[message.from_user.id]
 
-@dp.message_handler(state=PoemForm.author)
-async def process_author(message: types.Message, state: FSMContext):
-    author_text = message.text.strip()
-    if author_text.startswith("✅") or "отправить" in author_text.lower():
-        await message.answer("Пожалуйста, укажи автора *текстом* — не нажимай кнопку.", parse_mode="Markdown")
-        return
-    await state.update_data(author=author_text)
-    data = await state.get_data()
-    preview = f"✨ Получено:\n\nФормат: {data['format']}\n\nСтих:\n{data['text']}\n\nАвтор: {data['author']}"
-    await message.answer(preview, reply_markup=confirm_keyboard)
-    await PoemForm.confirm.set()
-
-@dp.callback_query_handler(lambda c: c.data == "confirm", state=PoemForm.confirm)
-async def confirm_submission(callback_query: types.CallbackQuery, state: FSMContext):
-    data = await state.get_data()
-    text_to_send = f"✨ Новый стих от подписчика:\n\nФормат: {data['format']}\n\n*{data['text']}*\n\nАвтор: _{data['author']}_"
-    try:
-        await bot.send_message(CHANNEL_ID, text_to_send, parse_mode="Markdown")
-        await bot.send_message(
-            callback_query.from_user.id,
-            "✅ Спасибо! Ваш стих отправлен на рассмотрение редакции.\n\nВозвращайтесь, когда будет вдохновение ✨",
-            reply_markup=send_again_keyboard
-        )
-    except Exception as e:
-        await bot.send_message(callback_query.from_user.id, f"Произошла ошибка при отправке в канал: {e}")
-    await state.finish()
-
-@dp.callback_query_handler(lambda c: c.data == "edit", state=PoemForm.confirm)
-async def edit_submission(callback_query: types.CallbackQuery, state: FSMContext):
-    await bot.send_message(callback_query.from_user.id, "Хорошо! Пришли, пожалуйста, исправленный стих:")
-    await PoemForm.text.set()
-
-@dp.callback_query_handler(lambda c: c.data == "send_again", state='*')
-async def send_again(callback_query: types.CallbackQuery, state: FSMContext):
-    await state.finish()
-    await bot.send_message(
-        callback_query.from_user.id,
-        "Выбери формат стиха для нового отправления:",
-        reply_markup=format_keyboard
+    preview = (
+        f"📝 *Проверьте данные перед отправкой:*\n\n"
+        f"{data['format']}\n\n"
+        f"{data['text']}\n\n"
+        f"👤 Автор: _{data['author']}_"
     )
 
-@dp.message_handler(commands='cancel', state='*')
-async def cancel(message: types.Message, state: FSMContext):
-    await state.finish()
-    await message.answer("Действие отменено. Чтобы начать сначала, набери /start.")
+    kb_confirm = ReplyKeyboardMarkup(resize_keyboard=True)
+    kb_confirm.add(KeyboardButton("✅ Отправить"), KeyboardButton("❌ Отменить"))
 
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+    await message.answer(preview, parse_mode="Markdown", reply_markup=kb_confirm)
 
+# --- Подтверждение ---
+@dp.message_handler(lambda msg: msg.text in ["✅ Отправить", "❌ Отменить"])
+async def confirm(message: types.Message):
+    user_id = message.from_user.id
+
+    if user_id not in user_data:
+        await message.answer("⚠️ Нет данных для отправки. Начните заново: /start")
+        return
+
+    if message.text == "❌ Отменить":
+        del user_data[user_id]
+        await message.answer("🚫 Отменено. Чтобы начать заново, введите /start", reply_markup=kb)
+        return
+
+    data = user_data[user_id]
+    text_to_send = f"{data['format']}\n\n{data['text']}\n\n👤 Автор: _{data['author']}_"
+
+    await bot.send_message(CHANNEL_ID, text_to_send, parse_mode="Markdown")
+    await message.answer("✨ Ваш стих отправлен на рассмотрение! Спасибо 🙏", reply_markup=kb)
+
+    del user_data[user_id]
+
+# --- Keep Alive для Render ---
+async def keep_alive():
+    url = os.getenv("RENDER_EXTERNAL_URL")
+    if not url:
+        return
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    logging.info(f"🔄 Pinged {url} — status {resp.status}")
+        except Exception as e:
+            logging.error(f"Ошибка ping: {e}")
+        await asyncio.sleep(600)  # каждые 10 минут
+
+# --- Webhook ---
+async def on_startup(dp):
+    url = os.getenv("RENDER_EXTERNAL_URL")
+    if url:
+        webhook_url = f"{url}/webhook"
+        await bot.set_webhook(webhook_url)
+        logging.info(f"✅ Webhook установлен: {webhook_url}")
+        asyncio.create_task(keep_alive())
+
+# --- Обработка webhook запросов ---
+async def handle_webhook(request):
+    data = await request.json()
+    update = types.Update.to_object(data)
+    await dp.process_update(update)
+    return web.Response()
+
+# --- Запуск сервера aiohttp ---
+async def main():
+    app = web.Application()
+    app.router.add_post("/webhook", handle_webhook)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 10000)))
+    await site.start()
+
+    await on_startup(dp)
+    logging.info("🤖 Бот запущен и готов к работе 24/7!")
+
+    while True:
+        await asyncio.sleep(3600)
+
+if __name__ == "__main__":
+    asyncio.run(main())
