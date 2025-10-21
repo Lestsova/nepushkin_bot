@@ -19,8 +19,8 @@ if not BOT_TOKEN:
     raise ValueError("❌ Не найден BOT_TOKEN в переменных окружения Render!")
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
 Bot.set_current(bot)
+dp = Dispatcher(bot)
 
 # --- Хранение состояний ---
 user_data = {}
