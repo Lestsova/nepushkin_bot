@@ -20,6 +20,7 @@ if not BOT_TOKEN:
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
+Bot.set_current(bot)
 
 # --- Хранение состояний ---
 user_data = {}
